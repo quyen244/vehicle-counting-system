@@ -1,0 +1,54 @@
+FROM apache/spark:3.5.0
+
+# Chuyển sang root để cài đặt gói hệ thống
+USER root
+
+# 1. Cài đặt OpenSSH, Python, và thư viện hệ thống
+# libpq-dev: cần cho psycopg2
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    python3 \
+    python3-pip \
+    build-essential \
+    libglib2.0-0 \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Cấu hình SSH Server
+RUN mkdir /var/run/sshd
+# Đặt mật khẩu cho user 'spark'
+RUN echo 'spark:spark123' | chpasswd
+# Cho phép login root và password authentication (để test)
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+EXPOSE 22
+
+# 3. Cài đặt Python Libs
+# LƯU Ý: Đã bỏ 'pyspark' vì có sẵn trong image.
+RUN pip3 install --no-cache-dir \
+    "numpy==1.24.4" \
+    "pandas==2.0.3" \
+    "pyarrow==14.0.1" \
+    "opencv-python-headless==4.8.1.78" \
+    "kafka-python==2.0.2" \
+    "onnxruntime==1.16.3" \
+    "protobuf==3.20.3" \
+    "packaging==23.2" \
+    "pyspark==3.5.0"
+
+# 4. SỬA LỖI Ở ĐÂY: Tạo thư mục Home trước khi ghi file .bashrc
+# Tạo folder -> Cấp quyền cho user spark (uid 185) -> Ghi biến môi trường
+RUN mkdir -p /home/spark && \
+    chown -R spark:spark /home/spark && \
+    echo "export SPARK_HOME=/opt/spark" >> /home/spark/.bashrc && \
+    echo "export PATH=$PATH:/opt/spark/bin" >> /home/spark/.bashrc
+
+# 5. Copy Entrypoint và cấp quyền
+COPY entrypoint_master.sh /opt/entrypoint_master.sh
+RUN chmod +x /opt/entrypoint_master.sh
+
+# 6. Thiết lập thư mục làm việc
+WORKDIR /app
+
+# Chạy container với entrypoint tùy chỉnh
+ENTRYPOINT ["/opt/entrypoint_master.sh"]

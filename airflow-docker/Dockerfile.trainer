@@ -1,0 +1,54 @@
+# Sử dụng Base Image TensorFlow (phiên bản mới nhất hỗ trợ CPU)
+FROM tensorflow/tensorflow:2.15.0
+
+# TensorFlow image thường chạy user root mặc định, nên ta không cần switch USER root
+# Tuy nhiên, khai báo rõ ràng vẫn tốt hơn.
+USER root
+
+# 1. Cài đặt OpenSSH và các thư viện hệ thống cần thiết
+# libglib2.0-0, libsm6...: Cần thiết nếu bạn dùng OpenCV xử lý ảnh
+# 1. Chỉ cài những thứ thật sự cần
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Cấu hình SSH Server
+RUN mkdir /var/run/sshd
+
+# --- CẤU HÌNH USER SSH ---
+# Ở đây mình dùng user 'root' luôn để tránh lỗi permission khi mount volume từ host.
+# Password là: root123 (Bạn dùng cái này để cấu hình Connection trong Airflow)
+RUN echo 'root:root123' | chpasswd
+
+# Cho phép login root qua SSH
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# Cho phép login bằng password (thay vì key cho đơn giản lúc dev)
+RUN sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Fix lỗi "Missing privilege separation directory" trên một số bản linux mới
+RUN mkdir -p /run/sshd
+
+EXPOSE 22
+
+# 3. Cài đặt các thư viện Python bổ sung cho Data Science
+# TensorFlow đã có sẵn. Ta cài thêm Pandas, Scikit-learn, v.v.
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    pandas \
+    "numpy<2"  \
+    pyarrow \
+    scikit-learn \
+    pydot \
+    psycopg2-binary 
+
+
+# 4. Thiết lập thư mục làm việc (Khớp với volume mount trong docker-compose)
+WORKDIR /opt/project
+
+# 5. Copy Entrypoint (Tùy chọn, hoặc viết lệnh CMD trực tiếp)
+COPY entrypoint_trainer.sh /opt/entrypoint_trainer.sh
+RUN chmod +x /opt/entrypoint_trainer.sh
+
+# Chạy SSH Daemon ở chế độ không detach (giữ container sống)
+ENTRYPOINT ["/opt/entrypoint_trainer.sh"]

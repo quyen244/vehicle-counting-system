@@ -1,0 +1,38 @@
+# Ignore data and model folders
+
+/data/
+/models/
+
+# Ignore any files inside them even if folder names change
+
+**/data/*
+**/models/*
+
+# Optional: ignore common ML artifacts
+
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.bin
+*.onnx
+
+# Python cache
+
+**pycache**/
+*.pyc
+
+# Environment files
+
+.env
+venv/
+.env/
+.env.*
+*.env
+
+
+logs/
+*.log
+airflow.db
+airflow-webserver.pid
+
